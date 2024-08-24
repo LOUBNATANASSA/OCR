@@ -22,40 +22,44 @@ def extract_numbers(text):
     return ''.join(matches)  # Return as a continuous string of numbers
 
 def preprocess_image(img):
-    img = img.convert('L')  # Convert to grayscale
-    img = img.filter(ImageFilter.GaussianBlur(1))  # Apply Gaussian blur
+    img = img.convert('L')  # Convertir en niveaux de gris
+    img = img.filter(ImageFilter.MedianFilter(size=3))  # Appliquer un filtre médian pour réduire le bruit
     enhancer = ImageEnhance.Contrast(img)
-    img = enhancer.enhance(2)  # Increase contrast
-    img = img.filter(ImageFilter.SHARPEN)  # Sharpen the image
-    img = img.point(lambda x: 0 if x < 128 else 255, '1')  # Binarize the image
+    img = enhancer.enhance(2)  # Augmenter le contraste
+    img = img.filter(ImageFilter.SHARPEN)  # Affiner l'image
+    img = img.point(lambda x: 0 if x < 128 else 255, '1')  # Binariser l'image
     return img
 
+
+
 def extract_info_from_image(img):
-    try:
-        rois = {
-            'nom': (140, 40, 360, 100),
-            'prenom': (140, 90, 300, 140),
-            'date_naissance': (200, 90, 450, 160),
-            'id': (50, 260, 220, 320)  # Coordonnées pour l'ID
-        }
+    rois = {
+        'nom': (140, 40, 360, 100),
+        'prenom': (140, 90, 300, 140),
+        'date_naissance': (200, 90, 450, 160),
+        'id': (50, 260, 220, 320)
+    }
 
-        extracted_info = {}
+    extracted_info = {}
 
-        for key, box in rois.items():
-            try:
-                roi_img = img.crop(box)  # Extraire la région d'intérêt (ROI)
-                roi_img = preprocess_image(roi_img)  # Appliquer le prétraitement
-                text = pytesseract.image_to_string(roi_img, config='--psm 6')
+    for key, box in rois.items():
+        try:
+            roi_img = img.crop(box)  # Extraire la région d'intérêt (ROI)
+            roi_img = preprocess_image(roi_img)  # Appliquer le prétraitement
+            
+            # Tester différents modes de segmentation de page
+            text = pytesseract.image_to_string(roi_img, config='--psm 6').strip()
+            
+            if key == 'date_naissance':
+                extracted_info[key] = extract_numbers(text)  # Extraire seulement les numéros pour la date de naissance
+            else:
+                extracted_info[key] = extract_uppercase_and_numbers(text)  # Traitement des autres champs
 
-                extracted_info[key] = extract_uppercase_and_numbers(text)  # Appliquer le même traitement pour tous les champs
-            except Exception as e:
-                print(f"Erreur lors du traitement de la région {key}: {e}")
-                extracted_info[key] = ''  # Laisser le champ vide si une erreur se produit
+        except Exception as e:
+            print(f"Erreur lors du traitement de la région {key}: {e}")
+            extracted_info[key] = ''  # Laisser le champ vide si une erreur se produit
 
-        return extracted_info
-    except Exception as e:
-        print(f"Erreur lors de l'extraction des informations : {e}")
-        return {}
+    return extracted_info
 
 
 
